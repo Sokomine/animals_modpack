@@ -53,6 +53,12 @@ function mob_inventory.allow_move(inv, from_list, from_index, to_list, to_index,
 		return 0
 	end
 
+        -- forbid moving of parts of stacks
+        local old_stack = inv.get_stack(inv, from_list, from_index );
+        if( count ~= old_stack.get_count( old_stack )) then
+           return 0;
+        end
+
 	return count
 end
 
@@ -130,7 +136,23 @@ function mob_inventory.on_move(inv, from_list, from_index, to_list, to_index, co
 		
 		local moved = inv.get_stack(inv,to_list, to_index)
 		
+		local goodname = moved.get_name(moved);
 		local elements = moved.get_count(moved)
+
+                -- handle situations where diffrent amounts of the same good are offered
+
+                -- print("Taking from "..tostring( from_list).." to "..tostring( from_list ).." at index "..tostring( from_index ));
+                -- if it was the same type of good (and now contains a summed up number of offerings) put the old stack back into the traders inv
+                if( elements > count ) then
+                   -- print( "Ok, whe have to give back a stack of "..tostring( elements - count ).." "..tostring( goodname )..". Target stack: "..tostring( from_index ));
+                   -- remove the surplus parts
+                   inv.set_stack(inv,"selection", 1,          goodname.." "..tostring( count ));
+                   -- the slot we took from is now free
+                   inv.set_stack(inv,"goods",     from_index, goodname.." "..tostring( elements - count ));
+                   -- update the real amount of items in the slot now
+                   elements = count;
+                end
+
 		
 		--if elements > 1 then
 		--	moved = moved.take_item(moved,elements-1)
@@ -147,11 +169,10 @@ function mob_inventory.on_move(inv, from_list, from_index, to_list, to_index, co
 			return
 		end
 		
-		local goodname = moved.get_name(moved)
 		dbg_mobf.trader_inv_lvl1("MOBF: good selected: " .. goodname)
 		
 		--get element put to selection
-		mob_inventory.fill_prices(entity,inv,goodname,moved.get_count(moved))
+		mob_inventory.fill_prices(entity,inv,goodname, count )
 		mob_inventory.update_takeaway(inv)
 	end
 end
@@ -525,7 +546,8 @@ function mob_inventory.add_goods(entity,trader_inventory)
 		.. " goods for trader")
 	for i=1,#entity.data.trader_inventory.goods,1 do
 		dbg_mobf.trader_inv_lvl3("MOBF:\tadding " .. entity.data.trader_inventory.goods[i][1])
-		trader_inventory.add_item(trader_inventory,"goods",
+--		trader_inventory.add_item(trader_inventory,"goods",
+		trader_inventory.set_stack(trader_inventory,"goods", i,
 									entity.data.trader_inventory.goods[i][1])
 	end
 
